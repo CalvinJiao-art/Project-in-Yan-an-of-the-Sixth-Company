@@ -384,38 +384,45 @@
     </div>
 
     <script>
-        // 核心修复：拆分层级的部门计数（不再全局共享）
-        // 1. 部门负责人层级的部门计数
+        // 核心配置（和统计页保持一致）
+        const VOTE_DATA_KEY = 'project_vote_data_2025';
+        const ADMIN_PASSWORD = '991211Zq.';
+        
+        // 生成设备唯一标识（用于防重复投票，比仅对比内容更可靠）
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('vote_device_id_2025');
+            if (!deviceId) {
+                // 生成随机唯一ID
+                deviceId = 'dev_' + Math.random().toString(36).substr(2, 10) + '_' + new Date().getTime();
+                localStorage.setItem('vote_device_id_2025', deviceId);
+            }
+            return deviceId;
+        }
+
+        // 初始化层级部门计数
         const deptLeaderDeptCount = {};
-        // 2. 一般管理人员层级的部门计数
         const generalManagerDeptCount = {};
 
-        // 初始化部门计数（按层级分别初始化）
-        // 初始化部门负责人层级
+        // 初始化部门负责人层级计数
         document.querySelectorAll('input[name="deptLeader"]').forEach(checkbox => {
             const dept = checkbox.closest('.candidate-item').dataset.dept;
-            if (!deptLeaderDeptCount[dept]) {
-                deptLeaderDeptCount[dept] = 0;
-            }
-        });
-        // 初始化一般管理人员层级
-        document.querySelectorAll('input[name="generalManager"]').forEach(checkbox => {
-            const dept = checkbox.closest('.candidate-item').dataset.dept;
-            if (!generalManagerDeptCount[dept]) {
-                generalManagerDeptCount[dept] = 0;
-            }
+            if (!deptLeaderDeptCount[dept]) deptLeaderDeptCount[dept] = 0;
         });
 
-        // 限制优秀部门负责人：选2名 + 本层级同部门限1人
+        // 初始化一般管理人员层级计数
+        document.querySelectorAll('input[name="generalManager"]').forEach(checkbox => {
+            const dept = checkbox.closest('.candidate-item').dataset.dept;
+            if (!generalManagerDeptCount[dept]) generalManagerDeptCount[dept] = 0;
+        });
+
+        // 限制优秀部门负责人：选2名 + 同部门限1人
         const deptLeaderChecks = document.querySelectorAll('input[name="deptLeader"]');
         deptLeaderChecks.forEach(checkbox => {
             checkbox.addEventListener('change', () => {
                 const candidateItem = checkbox.closest('.candidate-item');
                 const dept = candidateItem.dataset.dept;
 
-                // 仅操作部门负责人层级的计数（和一般管理人员无关）
                 if (checkbox.checked) {
-                    // 本层级同部门限1人
                     if (deptLeaderDeptCount[dept] >= 1) {
                         alert(`【部门负责人层级-${dept}】同一部门最多只能选1人！`);
                         checkbox.checked = false;
@@ -426,26 +433,23 @@
                     deptLeaderDeptCount[dept]--;
                 }
 
-                // 总数限选2人
                 const checkedCount = document.querySelectorAll('input[name="deptLeader"]:checked').length;
                 if (checkedCount > 2) {
                     alert('优秀部门负责人最多选择2名！');
                     checkbox.checked = false;
-                    deptLeaderDeptCount[dept]--; // 回滚本层级计数
+                    deptLeaderDeptCount[dept]--;
                 }
             });
         });
 
-        // 限制优秀一般管理人员：选5名 + 本层级同部门限1人
+        // 限制优秀一般管理人员：选5名 + 同部门限1人
         const generalManagerChecks = document.querySelectorAll('input[name="generalManager"]');
         generalManagerChecks.forEach(checkbox => {
             checkbox.addEventListener('change', () => {
                 const candidateItem = checkbox.closest('.candidate-item');
                 const dept = candidateItem.dataset.dept;
 
-                // 仅操作一般管理人员层级的计数（和部门负责人无关）
                 if (checkbox.checked) {
-                    // 本层级同部门限1人
                     if (generalManagerDeptCount[dept] >= 1) {
                         alert(`【一般管理人员层级-${dept}】同一部门最多只能选1人！`);
                         checkbox.checked = false;
@@ -456,20 +460,19 @@
                     generalManagerDeptCount[dept]--;
                 }
 
-                // 总数限选5人
                 const checkedCount = document.querySelectorAll('input[name="generalManager"]:checked').length;
                 if (checkedCount > 5) {
                     alert('优秀一般管理人员最多选择5名！');
                     checkbox.checked = false;
-                    generalManagerDeptCount[dept]--; // 回滚本层级计数
+                    generalManagerDeptCount[dept]--;
                 }
             });
         });
 
-        // 表单提交最终验证
+        // 表单提交最终验证（核心：统一存储 + 设备级防重复）
         const voteForm = document.getElementById('voteForm');
         voteForm.addEventListener('submit', (e) => {
-            e.preventDefault(); // 阻止默认提交
+            e.preventDefault();
             const deptCheckedCount = document.querySelectorAll('input[name="deptLeader"]:checked').length;
             const generalCheckedCount = document.querySelectorAll('input[name="generalManager"]:checked').length;
 
@@ -482,35 +485,41 @@
                 return;
             }
 
-            // 投票数据存储（方便后续统计）
-            const VOTE_DATA_KEY = 'project_vote_data_2025';
+            // 组装投票数据（新增设备ID）
+            const deviceId = getDeviceId();
             const voteData = {
+                deviceId: deviceId, // 设备唯一标识
                 deptLeader: Array.from(document.querySelectorAll('input[name="deptLeader"]:checked')).map(cb => cb.value),
                 generalManager: Array.from(document.querySelectorAll('input[name="generalManager"]:checked')).map(cb => cb.value),
                 voteTime: new Date().toLocaleString()
             };
+
+            // 读取全局存储的投票数据（关键：统一从localStorage读取）
             const existingData = JSON.parse(localStorage.getItem(VOTE_DATA_KEY) || '[]');
-            // 简单防重复投票
-            if (existingData.some(item => JSON.stringify(item.deptLeader) === JSON.stringify(voteData.deptLeader) && JSON.stringify(item.generalManager) === JSON.stringify(voteData.generalManager))) {
+            
+            // 设备级防重复（同一设备只能投1次）
+            if (existingData.some(item => item.deviceId === deviceId)) {
                 alert('你已提交过投票，请勿重复提交！');
                 return;
             }
+
+            // 保存数据到localStorage（所有页面共享这个key）
             existingData.push(voteData);
             localStorage.setItem(VOTE_DATA_KEY, JSON.stringify(existingData));
 
             alert('投票成功！感谢你的参与！');
             voteForm.reset();
             
-            // 重置层级计数（提交后清空）
+            // 重置计数
             Object.keys(deptLeaderDeptCount).forEach(dept => deptLeaderDeptCount[dept] = 0);
             Object.keys(generalManagerDeptCount).forEach(dept => generalManagerDeptCount[dept] = 0);
         });
 
-        // 发起人查看统计的快捷入口（密码改为你的991211Zq.）
+        // 发起人查看统计（打开同域名下的vote_stats.html）
         window.showVoteStats = function() {
-            const ADMIN_PASSWORD = '991211Zq.'; // 和统计页密码一致
             const inputPwd = prompt('请输入发起人密码：');
             if (inputPwd === ADMIN_PASSWORD) {
+                // 关键：打开同域名下的vote_stats.html（确保共享localStorage）
                 window.open('vote_stats.html', '_blank');
             } else {
                 alert('密码错误！');
