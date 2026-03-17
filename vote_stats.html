@@ -77,11 +77,11 @@
     </div>
 
     <script>
-        // 配置项（和投票页保持一致）
+                // 配置项（和投票页完全一致）
         const ADMIN_PASSWORD = '991211Zq.'; 
         const VOTE_DATA_KEY = 'project_vote_data_2025';
 
-        // 1. 密码验证逻辑（优化：避免浏览器拦截window.close）
+        // 1. 密码验证
         const inputPwd = prompt('请输入发起人密码：');
         const errorTip = document.getElementById('errorTip');
         const statsContainer = document.getElementById('statsContainer');
@@ -93,24 +93,26 @@
             initStats(); // 验证通过后初始化统计
         }
 
-        // 2. 初始化统计核心逻辑
+        // 2. 初始化统计核心逻辑（读取统一的localStorage数据）
         function initStats() {
-            // 读取投票数据
+            // 读取全局投票数据（关键：和投票页用同一个key）
             const voteDataList = JSON.parse(localStorage.getItem(VOTE_DATA_KEY) || '[]');
             const totalVoteCount = voteDataList.length;
             document.getElementById('totalVoteCount').textContent = `总投票人数：${totalVoteCount}`;
 
-            // 统计得票（通用函数）
+            // 通用统计得票函数
             function countVotes(voteType) {
                 const voteCountMap = {};
                 voteDataList.forEach(vote => {
+                    // 兼容有无deviceId的情况
+                    if (!vote[voteType]) return;
                     vote[voteType].forEach(candidate => {
                         const [name, dept] = candidate.split('|');
                         const key = `${name}|${dept}`;
                         voteCountMap[key] = (voteCountMap[key] || 0) + 1;
                     });
                 });
-                // 转换为数组并排序（降序）
+                // 转换为数组并按得票数降序排序
                 return Object.entries(voteCountMap).map(([key, count]) => {
                     const [name, dept] = key.split('|');
                     const rate = totalVoteCount > 0 ? ((count / totalVoteCount) * 100).toFixed(2) + '%' : '0%';
@@ -118,11 +120,10 @@
                 }).sort((a, b) => b.count - a.count);
             }
 
-            // 渲染表格
+            // 渲染表格函数
             function renderTable(tableId, data) {
                 const tbody = document.querySelector(`#${tableId} tbody`);
                 tbody.innerHTML = '';
-                // 若暂无数据，显示提示行
                 if (data.length === 0) {
                     const tr = document.createElement('tr');
                     tr.innerHTML = '<td colspan="4" style="text-align:center; color:#999;">暂无投票数据</td>';
@@ -171,38 +172,38 @@
                 alert('统计结果已导出为CSV文件！');
             });
 
-            // 4. 新增：生成测试投票数据（模拟5人投票，覆盖不同候选人）
+            // 4. 生成测试投票数据（模拟5人，带设备ID）
             document.getElementById('testVoteBtn').addEventListener('click', function() {
                 if (!confirm('确定生成5条测试投票数据吗？会追加到现有数据中！')) return;
                 
-                // 模拟5条符合规则的投票数据（同部门限1人、总数符合2+5）
+                // 模拟5条符合规则的投票数据（带设备ID）
                 const testVoteData = [
-                    // 测试数据1
                     {
+                        deviceId: 'test_dev_001',
                         deptLeader: ['杨航航|综合管理部', '刘德光|工程技术部门'],
                         generalManager: ['王瑞鑫|工程技术部', '张庆|综合管理部', '黄宝存|质量环保部', '苏雨桐|合同成本部', '雷立科|物资统计'],
                         voteTime: new Date().toLocaleString()
                     },
-                    // 测试数据2
                     {
+                        deviceId: 'test_dev_002',
                         deptLeader: ['王鹏飞|质量环保部', '李盼盼|合同成本部'],
                         generalManager: ['王瑞江|工程技术部', '周玥|综合管理部', '党磊|质量环保部', '苏毓春|合同成本部', '张利芳|物资统计'],
                         voteTime: new Date().toLocaleString()
                     },
-                    // 测试数据3
                     {
+                        deviceId: 'test_dev_003',
                         deptLeader: ['程文|物资统计', '连晓雄|安全管理'],
                         generalManager: ['胡鑫|工程技术部', '安淑娅|安全管理部', '郭佳晨|合同成本部', '冯文靖|物资统计', '张彤|财务管理部'],
                         voteTime: new Date().toLocaleString()
                     },
-                    // 测试数据4
                     {
+                        deviceId: 'test_dev_004',
                         deptLeader: ['武志鹏|质量环保部', '帖玉|合同成本部'],
                         generalManager: ['汪靖鸿|工程技术部', '孙涛|安全管理部', '黄宝存|质量环保部', '李强|物资统计', '张彤|财务管理部'],
                         voteTime: new Date().toLocaleString()
                     },
-                    // 测试数据5
                     {
+                        deviceId: 'test_dev_005',
                         deptLeader: ['杨航航|综合管理部', '连晓雄|安全管理'],
                         generalManager: ['胡镱钟|工程技术部', '石伟|安全管理部', '党磊|质量环保部', '穆朋勃|物资统计', '苏雨桐|合同成本部'],
                         voteTime: new Date().toLocaleString()
@@ -218,7 +219,7 @@
                 initStats(); // 重新渲染统计结果
             });
 
-            // 5. 新增：清零所有投票数据
+            // 5. 清零所有投票数据
             document.getElementById('clearVoteBtn').addEventListener('click', function() {
                 if (!confirm('⚠️ 确定清零所有投票数据吗？此操作不可恢复！')) return;
                 
